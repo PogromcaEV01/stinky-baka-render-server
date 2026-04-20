@@ -1,10 +1,10 @@
 const { PeerServer } = require('peer');
-const port = process.env.PORT || 9000;
+const port = process.env.PORT || 10000; // Render używa portu 10000 lub zmiennej PORT
 
 const peerServer = PeerServer({ 
     port: port, 
     path: '/myapp',
-    proxied: true // Ważne dla hostingu typu Render/Heroku
+    proxied: true 
 });
 
-console.log(`Serwer PeerJS działa na porcie ${port}`);
+console.log(`PeerServer działa na porcie ${port}`);
