@@ -26,42 +26,53 @@ const peerServer = PeerServer({
 
 console.log(`PeerServer działa na porcie ${port}`);
 
-// 3. System zliczania graczy
-let activePlayers = 0;
+// 3. System zliczania GRACZY i MECZÓW
+let activeConnections = 0; // Wszyscy podłączeni (technicznie)
+let activeMatches = 0;     // Tylko trwające gry (pokoje)
 
 peerServer.on('connection', (client) => {
-    activePlayers++;
-    console.log(`[+] Gracz dołączył. Aktualnie online: ${activePlayers}`);
+    activeConnections++;
+    const id = client.getId(); // Pobieramy ID gracza
+    
+    // Jeśli ID zaczyna się od prefiksu pokoju, to znaczy, że ktoś założył grę!
+    if (id.startsWith('trucizna_priv_') || id.startsWith('match_')) {
+        activeMatches++;
+        console.log(`[+] Rozpoczęto nową grę! Aktywne mecze: ${activeMatches}`);
+    }
 });
 
 peerServer.on('disconnect', (client) => {
-    activePlayers--;
-    if (activePlayers < 0) activePlayers = 0; // Zabezpieczenie
-    console.log(`[-] Gracz wyszedł. Aktualnie online: ${activePlayers}`);
+    activeConnections--;
+    if (activeConnections < 0) activeConnections = 0;
+    
+    const id = client.getId();
+    // Jeśli z serwera wychodzi Host, zamykamy mecz w statystykach
+    if (id.startsWith('trucizna_priv_') || id.startsWith('match_')) {
+        activeMatches--;
+        if (activeMatches < 0) activeMatches = 0;
+        console.log(`[-] Zakończono grę. Aktywne mecze: ${activeMatches}`);
+    }
 });
 
-// 4. Wysyłanie statystyk do Supabase co 1 minutę (60000 ms)
+// 4. Wysyłanie statystyk do Supabase co 1 minutę
 setInterval(async () => {
     if (supabase) {
-        // NOWOŚĆ: Wysyłaj do bazy TYLKO jeśli jest chociaż 1 gracz na serwerze!
-        if (activePlayers > 0) {
-            console.log(`Wysyłam statystyki do bazy: ${activePlayers} graczy.`);
+        // Wysyłamy, jeśli gra toczy się chociaż 1 mecz
+        if (activeMatches > 0) {
+            // Skoro 1 mecz to 2 graczy, możemy zapisać to do bazy jako liczba graczy w grze!
+            let playersInGame = activeMatches * 2; 
+            
+            console.log(`Wysyłam statystyki: ${activeMatches} meczów (${playersInGame} graczy).`);
             
             const { error } = await supabase
                 .from('server_stats') 
                 .insert([
-                    { active_players: activePlayers } 
+                    { active_players: playersInGame } 
                 ]);
 
-            if (error) {
-                console.error('Błąd podczas zapisu do Supabase:', error.message);
-            } else {
-                console.log('Zapis do Supabase udany!');
-            }
+            if (error) console.error('Błąd Supabase:', error.message);
         } else {
-            console.log('Serwer pusty (0 graczy) - pomijam zapis do bazy, aby oszczędzać miejsce.');
+            console.log('Brak trwających meczów - pomijam zapis.');
         }
-    } else {
-        console.log(`(Symulacja) Aktualnie graczy: ${activePlayers}. Oczekuję na klucze ENV.`);
     }
 }, 60000);
