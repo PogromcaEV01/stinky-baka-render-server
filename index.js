@@ -43,20 +43,23 @@ peerServer.on('disconnect', (client) => {
 // 4. Wysyłanie statystyk do Supabase co 1 minutę (60000 ms)
 setInterval(async () => {
     if (supabase) {
-        console.log(`Wysyłam statystyki do bazy: ${activePlayers} graczy.`);
-        
-        const { error } = await supabase
-            .from('server_stats') 
-            // UWAGA: Usunąłem ręczne dodawanie 'timestamp'.
-            // Supabase zazwyczaj domyślnie tworzy kolumnę 'created_at', która sama łapie czas!
-            .insert([
-                { active_players: activePlayers } 
-            ]);
+        // NOWOŚĆ: Wysyłaj do bazy TYLKO jeśli jest chociaż 1 gracz na serwerze!
+        if (activePlayers > 0) {
+            console.log(`Wysyłam statystyki do bazy: ${activePlayers} graczy.`);
+            
+            const { error } = await supabase
+                .from('server_stats') 
+                .insert([
+                    { active_players: activePlayers } 
+                ]);
 
-        if (error) {
-            console.error('Błąd podczas zapisu do Supabase:', error.message);
+            if (error) {
+                console.error('Błąd podczas zapisu do Supabase:', error.message);
+            } else {
+                console.log('Zapis do Supabase udany!');
+            }
         } else {
-            console.log('Zapis do Supabase udany!');
+            console.log('Serwer pusty (0 graczy) - pomijam zapis do bazy, aby oszczędzać miejsce.');
         }
     } else {
         console.log(`(Symulacja) Aktualnie graczy: ${activePlayers}. Oczekuję na klucze ENV.`);
